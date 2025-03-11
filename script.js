@@ -1,4 +1,26 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize CodeMirror
+    const editor = CodeMirror(document.getElementById('html-editor'), {
+        mode: 'htmlmixed',
+        theme: 'eclipse',
+        lineNumbers: true,
+        autoCloseTags: true,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        indentUnit: 2,
+        tabSize: 2,
+        lineWrapping: true,
+        viewportMargin: Infinity,
+        extraKeys: {
+            'Ctrl-Enter': function(cm) {
+                updatePreview();
+            },
+            'Ctrl-S': function(cm) {
+                formatEditorContent();
+            }
+        }
+    });
+
     // Initialize Split.js for resizable panels
     const split = Split(['#editor-container', '#preview-container'], {
         sizes: [50, 50],
@@ -19,72 +41,71 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Get DOM elements
-    const htmlEditor = document.getElementById('html-editor');
     const previewBtn = document.getElementById('preview-btn');
-    const previewArea = document.getElementById('preview-area');
     const previewIframe = document.getElementById('preview-iframe');
     const clearBtn = document.getElementById('clear-btn');
     const copyBtn = document.getElementById('copy-btn');
+    const formatBtn = document.getElementById('format-btn');
     const livePreviewToggle = document.getElementById('live-preview-toggle');
-    const iframeToggle = document.getElementById('iframe-toggle');
 
-    // Disable Bootstrap's autofill functionality on the editor
-    if (htmlEditor) {
-        // Prevent Bootstrap's autofill from interfering
-        htmlEditor.setAttribute('autocomplete', 'off');
-        htmlEditor.setAttribute('data-bs-no-autofill', 'true');
-        
-        // Prevent default browser autofill
-        htmlEditor.setAttribute('autocorrect', 'off');
-        htmlEditor.setAttribute('autocapitalize', 'off');
-        htmlEditor.setAttribute('spellcheck', 'false');
+    // Function to format HTML code
+    function formatHTML(code) {
+        try {
+            return prettier.format(code, {
+                parser: "html",
+                plugins: prettierPlugins,
+                printWidth: 80,
+                tabWidth: 2,
+                useTabs: false,
+                semi: true,
+                singleQuote: false,
+                bracketSameLine: false,
+                htmlWhitespaceSensitivity: "css"
+            });
+        } catch (error) {
+            console.error('Prettier formatting error:', error);
+            return code; // Return original code if formatting fails
+        }
+    }
+
+    // Function to format the editor content
+    function formatEditorContent() {
+        const code = editor.getValue().trim();
+        if (!code) {
+            showNotification('Nothing to format', 'warning');
+            return;
+        }
+
+        try {
+            const formattedCode = formatHTML(code);
+            editor.setValue(formattedCode);
+            showNotification('HTML formatted successfully!', 'success');
+        } catch (error) {
+            console.error('Formatting error:', error);
+            showNotification('Error formatting HTML', 'danger');
+        }
     }
 
     // Function to update preview
     function updatePreview() {
         try {
             // Get the HTML from the editor
-            const htmlCode = htmlEditor.value.trim();
+            const htmlCode = editor.getValue().trim();
             
             // If there's no HTML, show a placeholder message
             if (!htmlCode) {
-                previewArea.innerHTML = '<p class="text-muted text-center">Your preview will appear here</p>';
-                if (previewIframe) {
-                    previewIframe.classList.add('d-none');
-                    previewArea.classList.remove('d-none');
-                }
+                updateIframeContent('<p class="text-muted text-center">Your preview will appear here</p>');
                 return;
             }
             
-            // Check if we should use iframe for preview
-            if (iframeToggle && iframeToggle.checked && previewIframe) {
-                // Show iframe, hide direct preview
-                previewIframe.classList.remove('d-none');
-                previewArea.classList.add('d-none');
-                
-                // Update iframe content
-                updateIframeContent(htmlCode);
-            } else {
-                // Show direct preview, hide iframe
-                if (previewIframe) {
-                    previewIframe.classList.add('d-none');
-                }
-                previewArea.classList.remove('d-none');
-                
-                // Update the preview area with the HTML
-                previewArea.innerHTML = htmlCode;
-            }
+            // Update iframe content
+            updateIframeContent(htmlCode);
             
             // Add a success message
             showNotification('Preview updated successfully!', 'success');
         } catch (error) {
-            // Show error message if something goes wrong
-            previewArea.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
-            if (previewIframe) {
-                previewIframe.classList.add('d-none');
-            }
-            previewArea.classList.remove('d-none');
             showNotification('Error updating preview', 'danger');
+            console.error('Preview error:', error);
         }
     }
 
@@ -152,63 +173,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 2000);
     }
 
-    // Create a display area for syntax highlighted code
-    const codeDisplayArea = document.createElement('div');
-    codeDisplayArea.id = 'code-display';
-    codeDisplayArea.className = 'mt-3 d-none';
-    if (htmlEditor && htmlEditor.parentNode) {
-        htmlEditor.parentNode.appendChild(codeDisplayArea);
-    }
-
-    // Function to highlight code in the editor
-    function highlightCode() {
-        if (!htmlEditor) return;
-        
-        const code = htmlEditor.value;
-        if (!code.trim()) {
-            codeDisplayArea.classList.add('d-none');
-            return;
-        }
-        
-        // Create highlighted HTML
-        try {
-            const highlightedHtml = hljs.highlight(code, {language: 'xml'}).value;
-            codeDisplayArea.innerHTML = `<pre><code class="hljs language-html">${highlightedHtml}</code></pre>`;
-            codeDisplayArea.classList.remove('d-none');
-        } catch (error) {
-            console.error('Error highlighting code:', error);
-        }
-    }
-
     // Function to clear the editor
     function clearEditor() {
-        if (!htmlEditor) return;
-        
-        htmlEditor.value = '';
-        previewArea.innerHTML = '<p class="text-muted text-center">Your preview will appear here</p>';
-        if (previewIframe) {
-            previewIframe.classList.add('d-none');
-            previewArea.classList.remove('d-none');
-            
-            // Clear iframe content
-            try {
-                const iframeDoc = previewIframe.contentDocument || previewIframe.contentWindow.document;
-                iframeDoc.open();
-                iframeDoc.write('');
-                iframeDoc.close();
-            } catch (error) {
-                console.error('Error clearing iframe:', error);
-            }
-        }
-        codeDisplayArea.classList.add('d-none');
+        editor.setValue('');
+        updateIframeContent('<p class="text-muted text-center">Your preview will appear here</p>');
         showNotification('Editor cleared', 'info');
     }
 
     // Function to copy HTML to clipboard
     function copyToClipboard() {
-        if (!htmlEditor) return;
-        
-        const htmlCode = htmlEditor.value.trim();
+        const htmlCode = editor.getValue().trim();
         
         if (!htmlCode) {
             showNotification('Nothing to copy', 'warning');
@@ -224,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Safely add event listeners
+    // Add event listeners
     if (previewBtn) {
         previewBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -246,63 +220,46 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    if (formatBtn) {
+        formatBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            formatEditorContent();
+        });
+    }
+    
     // Live preview toggle
     if (livePreviewToggle) {
         livePreviewToggle.addEventListener('change', function() {
             if (this.checked) {
                 showNotification('Live preview enabled', 'info');
-                if (htmlEditor && htmlEditor.value.trim()) {
-                    updatePreview();
-                }
+                updatePreview();
             } else {
                 showNotification('Live preview disabled', 'info');
             }
         });
     }
     
-    // Iframe toggle
-    if (iframeToggle) {
-        iframeToggle.addEventListener('change', function() {
-            if (this.checked) {
-                showNotification('Iframe preview enabled', 'info');
-            } else {
-                showNotification('Iframe preview disabled', 'info');
-            }
-            // Update preview to reflect the change
-            if (htmlEditor && htmlEditor.value.trim()) {
-                updatePreview();
-            }
-        });
-    }
-    
     // Live preview as you type (with debounce)
     let debounceTimer;
-    if (htmlEditor) {
-        htmlEditor.addEventListener('input', function(e) {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                highlightCode();
-                // Update preview if live preview is enabled
-                if (livePreviewToggle && livePreviewToggle.checked) {
-                    updatePreview();
-                }
-            }, 300);
-        });
-    }
+    editor.on('change', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            if (livePreviewToggle && livePreviewToggle.checked) {
+                updatePreview();
+            }
+        }, 300);
+    });
 
     // Add some example HTML to get started
-    if (htmlEditor) {
-        htmlEditor.value = '<div class="example">\n  <h2>Hello World</h2>\n  <p>This is a sample HTML tag.</p>\n  <button class="btn btn-primary">Click Me</button>\n</div>';
-    }
+    editor.setValue('<div class="example">\n  <h2>Hello World</h2>\n  <p>This is a sample HTML tag.</p>\n  <button class="btn btn-primary">Click Me</button>\n</div>');
     
-    // Initial preview and highlighting
+    // Initial preview
     updatePreview();
-    highlightCode();
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
         // Only process shortcuts if the editor exists
-        if (!htmlEditor) return;
+        if (!editor) return;
         
         // Ctrl+Enter to preview
         if (e.ctrlKey && e.key === 'Enter') {
@@ -316,10 +273,16 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
         }
         
+        // Ctrl+Shift+F to format
+        if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+            formatEditorContent();
+            e.preventDefault();
+        }
+        
         // Escape to clear
         if (e.key === 'Escape') {
             // Only clear if the editor is focused
-            if (document.activeElement === htmlEditor) {
+            if (document.activeElement === editor.getWrapperElement()) {
                 clearEditor();
                 e.preventDefault();
             }
