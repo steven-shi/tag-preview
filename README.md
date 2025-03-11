@@ -2,6 +2,10 @@
 
 Tag Space is a simple web application for previewing HTML tags. It provides a convenient way to paste HTML code on the left panel and instantly see how it renders on the right panel.
 
+## Screenshot
+
+![Tag Space Screenshot](screenshots/tagspace-preview.png)
+
 ## Features
 
 - Paste HTML tags in the editor panel
